@@ -1,0 +1,61 @@
+#### koa-mysql-session koa-session-minimal
+- koa2 原生功能只提供了cookie的操作，但是没有提供session操作.需要安装第三方中间件,
+- koa-session-minimal 适用于koa2 的session中间件，提供存储介质的读写接口 。
+- koa-mysql-session 为koa-session-minimal中间件提供MySQL数据库的session数据读写操作。将sessionId的数据存到数据库
+
+
+#### Koa中Cookie和Session区别
+1. cookie数据存放在客户的浏览器上，session数据放在服务器上。
+2. cookie不是很安全，别人可以分析存放在本地的COOKIE并进行COOKIE欺骗
+   考虑到安全应当使用session。
+3. session会在一定时间内保存在服务器上。当访问增多，会比较占用你服务器的性能
+   考虑到减轻服务器性能方面，应当使用COOKIE。
+4. 单个cookie保存的数据不能超过4K，很多浏览器都限制一个站点最多保存20个cookie。
+
+
+#### 基于Redis方式
+1. npm install koa-session2 ioredis 安装依赖
+```
+// redis index.js引入文件
+const session = require("koa-session2");
+const Store = require("./config/Store");
+
+// 使用redis作为session存储
+app.use(session({
+  store: new Store(),
+  key: "SESSIONID",  // default "koa:sess"
+}));
+
+config/Store.js // 建立新的文件
+
+const Redis = require("ioredis");
+const { Store } = require("koa-session2");
+const redisConfig = require('./redis');
+ 
+class RedisStore extends Store {
+    constructor() {
+        super();
+        this.redis = new Redis(redisConfig);
+    }
+ 
+    async get(sid, ctx) {
+        let data = await this.redis.get(`SESSION:${sid}`);
+        return JSON.parse(data);
+    }
+ 
+    async set(session, { sid =  this.getID(24), maxAge = 1000000 } = {}, ctx) {
+        try {
+            // Use redis set EX to automatically drop expired sessions
+            await this.redis.set(`SESSION:${sid}`, JSON.stringify(session), 'EX', maxAge / 1000);
+        } catch (e) {}
+        return sid;
+    }
+ 
+    async destroy(sid, ctx) {
+        return await this.redis.del(`SESSION:${sid}`);
+    }
+}
+ 
+module.exports = RedisStore;
+```
+
